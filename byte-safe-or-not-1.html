@@ -1,0 +1,698 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Byte's Mission: Safe or Not Safe?</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #f4f6fb 0%, #eaeef7 100%);
+    font-family: 'Courier New', 'Roboto Mono', monospace;
+    padding: 1.5rem;
+    color: #181828;
+    user-select: none;
+  }
+
+  @keyframes float    { 0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)} }
+  @keyframes shake    { 0%,100%{transform:translateX(0)}25%{transform:translateX(-8px)}75%{transform:translateX(8px)} }
+  @keyframes pop      { 0%{transform:scale(0.6);opacity:0}100%{transform:scale(1);opacity:1} }
+  @keyframes celebrate{ 0%,100%{transform:scale(1) rotate(0)}25%{transform:scale(1.1) rotate(-6deg)}75%{transform:scale(1.1) rotate(6deg)} }
+  @keyframes flash-green { 0%,100%{background:#e3f7ec}50%{background:#a8edca} }
+  @keyframes flash-red   { 0%,100%{background:#fde8e0}50%{background:#f9b8b0} }
+  @keyframes score-pop   { 0%{transform:scale(1)}50%{transform:scale(1.4)}100%{transform:scale(1)} }
+
+  .float { animation: float 3s ease-in-out infinite; }
+  .celebrate { animation: celebrate 1s ease infinite; }
+  .shake { animation: shake 0.4s ease; }
+
+  /* ── HEADER ── */
+  .header {
+    display: flex;
+    gap: 1.25rem;
+    align-items: center;
+    max-width: 860px;
+    margin: 0 auto 1rem;
+    background: #181828;
+    color: #f4f6fb;
+    border-radius: 20px;
+    padding: 1.25rem 1.5rem;
+  }
+  #byteEl {
+    flex-shrink: 0;
+    width: 80px;
+    min-width: 80px;
+  }
+  #byteEl svg, .zone-thumb svg, .scene-card svg {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .eyebrow { font-size:.7rem; letter-spacing:.2em; color:#f4b942; font-weight:700; margin-bottom:.4rem; }
+  .title   { font-size:clamp(1.4rem,5vw,2rem); font-weight:800; margin:0 0 .5rem; }
+  .subtitle{ font-size:.92rem; line-height:1.6; color:#c8ccdc; margin:0; }
+
+  /* ── SCOREBOARD ── */
+  .scoreboard {
+    max-width: 860px;
+    margin: 0 auto 1rem;
+    display: flex;
+    gap: .75rem;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .score-box {
+    background: #fff;
+    border: 3px solid #d8dcec;
+    border-radius: 16px;
+    padding: .6rem 1.2rem;
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 800;
+    font-size: 1rem;
+  }
+  .score-box .score-num {
+    font-size: 1.6rem;
+    line-height: 1;
+    transition: transform .2s;
+  }
+  .score-box.correct { border-color: #2ab870; }
+  .score-box.wrong   { border-color: #e85d2f; }
+  .score-box.total   { border-color: #3fc6c6; margin-left: auto; }
+  .progress-track {
+    flex: 1;
+    min-width: 120px;
+    height: 12px;
+    background: #dde1ec;
+    border-radius: 100px;
+    overflow: hidden;
+  }
+  .progress-fill {
+    height: 100%;
+    background: linear-gradient(90deg, #3fc6c6, #8a5fc4);
+    border-radius: 100px;
+    transition: width .4s ease;
+    width: 0%;
+  }
+
+  /* ── DROP ZONES ── */
+  .zones {
+    max-width: 860px;
+    margin: 0 auto 1rem;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+  }
+  .zone {
+    min-height: 140px;
+    border: 3px dashed;
+    border-radius: 20px;
+    padding: 1rem;
+    cursor: pointer;
+    transition: transform .15s, background .2s;
+  }
+  .zone.safe   { background: #e3f7ec; border-color: #2ab870; }
+  .zone.unsafe { background: #fde8e0; border-color: #e85d2f; }
+  .zone.over   { transform: scale(1.03); }
+  .zone.flash-green { animation: flash-green .5s ease; }
+  .zone.flash-red   { animation: flash-red .5s ease; }
+  .zone-header {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    font-weight: 800;
+    font-size: 1.1rem;
+    margin-bottom: .6rem;
+    letter-spacing: .05em;
+  }
+  .zone.safe   .zone-header { color: #2ab870; }
+  .zone.unsafe .zone-header { color: #e85d2f; }
+  .zone-icon { font-size: 1.6rem; font-weight: 900; }
+  .zone-thumbs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .5rem;
+  }
+  .zone-empty {
+    font-size: .85rem;
+    color: #a8acc4;
+    font-style: italic;
+    text-align: center;
+    width: 100%;
+    padding: .75rem 0;
+  }
+  .zone-thumb {
+    width: 88px;
+    border-radius: 10px;
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,.1);
+    animation: pop .3s ease;
+  }
+  .zone-thumb svg { display:block; width:100%; height:auto; }
+
+  /* ── POOL ── */
+  .pool-wrap { max-width: 860px; margin: 0 auto; }
+  .pool-label {
+    font-size: .85rem;
+    font-weight: 700;
+    color: #7a7e96;
+    margin-bottom: .75rem;
+    text-align: center;
+    min-height: 1.3em;
+  }
+  .pool {
+    display: flex;
+    flex-wrap: wrap;
+    gap: .75rem;
+    justify-content: center;
+  }
+  .scene-card {
+    width: 155px;
+    border-radius: 14px;
+    overflow: hidden;
+    border: 2px solid #d8dcec;
+    background: #fff;
+    cursor: grab;
+    transition: transform .15s, box-shadow .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .scene-card:active  { cursor: grabbing; }
+  .scene-card:hover   { transform: translateY(-4px); box-shadow: 0 8px 20px rgba(0,0,0,.12); }
+  .scene-card.selected{ outline: 4px solid #f4b942; box-shadow: 0 0 0 6px rgba(244,185,66,.3); }
+  .scene-card svg     { display:block; width:100%; height:auto; }
+
+  /* ── FEEDBACK TOAST ── */
+  .toast {
+    position: fixed;
+    top: 1.5rem;
+    left: 50%;
+    transform: translateX(-50%) translateY(-80px);
+    background: #181828;
+    color: #f4f6fb;
+    border-radius: 100px;
+    padding: .65rem 1.5rem;
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: .04em;
+    transition: transform .3s ease;
+    z-index: 100;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast.good { background: #2ab870; }
+  .toast.bad  { background: #e85d2f; }
+
+  /* ── END MODAL ── */
+  .overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(24,24,40,.65);
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    z-index: 50;
+  }
+  .overlay.show { display: flex; }
+  .end-card {
+    background: #fff;
+    border-radius: 24px;
+    padding: 2rem;
+    max-width: 440px;
+    width: 100%;
+    text-align: center;
+  }
+  .end-title {
+    font-family: 'Courier New', monospace;
+    font-size: 1.5rem;
+    font-weight: 800;
+    margin: .5rem 0;
+  }
+  .end-text {
+    font-size: .95rem;
+    line-height: 1.6;
+    color: #3a3a52;
+    margin-bottom: 1rem;
+  }
+  .final-score {
+    display: flex;
+    justify-content: center;
+    gap: 1rem;
+    margin-bottom: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .final-score-box {
+    border-radius: 16px;
+    padding: .75rem 1.25rem;
+    font-weight: 800;
+    font-size: 1.1rem;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: .2rem;
+  }
+  .final-score-box span { font-size: 2rem; line-height: 1; }
+  .final-score-box.correct { background: #e3f7ec; color: #0a6b3a; }
+  .final-score-box.wrong   { background: #fde8e0; color: #7a1f0a; }
+  .replay-btn {
+    background: #3fc6c6;
+    color: #181828;
+    border: none;
+    border-radius: 100px;
+    padding: .7rem 1.75rem;
+    font-size: 1rem;
+    font-weight: 800;
+    font-family: 'Courier New', monospace;
+    cursor: pointer;
+  }
+
+  @media (max-width: 520px) {
+    .zones { grid-template-columns: 1fr; }
+    .scene-card { width: 130px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- TOAST -->
+<div class="toast" id="toast"></div>
+
+<!-- HEADER -->
+<div class="header">
+  <div id="byteEl" class="float">
+    <svg viewBox="0 0 200 220" width="80" height="88" style="display:block">
+      <circle cx="140" cy="28" r="9" fill="#8a5fc4"/>
+      <rect x="136" y="35" width="8" height="22" rx="3" fill="#3fc6c6"/>
+      <g stroke="#3fc6c6" stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M118 18 q22 -22 44 0" opacity="0.9"/>
+        <path d="M126 26 q14 -14 28 0" opacity="0.9"/>
+      </g>
+      <rect x="35" y="50" width="130" height="95" rx="30" fill="#fdfdfd" stroke="#d8d8e0" stroke-width="2"/>
+      <ellipse cx="30" cy="100" rx="10" ry="22" fill="#8a5fc4"/>
+      <ellipse cx="170" cy="100" rx="10" ry="22" fill="#3fc6c6"/>
+      <rect x="52" y="64" width="96" height="62" rx="14" fill="#181828"/>
+      <circle cx="82" cy="94" r="9" fill="#7fe8e8"/><circle cx="118" cy="94" r="9" fill="#7fe8e8"/>
+      <circle cx="79" cy="91" r="3" fill="#fff"/><circle cx="115" cy="91" r="3" fill="#fff"/>
+      <rect x="55" y="148" width="90" height="62" rx="18" fill="#fdfdfd" stroke="#d8d8e0" stroke-width="2"/>
+      <rect x="68" y="162" width="64" height="28" rx="6" fill="#181828"/>
+      <text x="100" y="182" text-anchor="middle" font-size="16" fill="#3fc6c6" font-family="'Courier New',monospace" font-weight="bold" letter-spacing="2">BYTE</text>
+      <circle cx="84" cy="200" r="3" fill="#8a5fc4"/><circle cx="100" cy="200" r="3" fill="#8a5fc4"/><circle cx="116" cy="200" r="3" fill="#8a5fc4"/>
+    </svg>
+  </div>
+  <div>
+    <div class="eyebrow">BYTE'S MISSION</div>
+    <h1 class="title">Safe or Not Safe?</h1>
+    <p class="subtitle">
+      Look at each picture. Drag (or tap) it to the right box —
+      <strong style="color:#2ab870">SAFE ✓</strong> or <strong style="color:#e85d2f">NOT SAFE ✕</strong>.
+    </p>
+  </div>
+</div>
+
+<!-- SCOREBOARD -->
+<div class="scoreboard">
+  <div class="score-box correct">✓ <span class="score-num" id="scoreCorrect">0</span> correct</div>
+  <div class="score-box wrong">✕ <span class="score-num" id="scoreWrong">0</span> wrong</div>
+  <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+  <div class="score-box total">🃏 <span class="score-num" id="scoreLeft">6</span> left</div>
+</div>
+
+<!-- DROP ZONES -->
+<div class="zones">
+  <div class="zone safe" id="zoneSafe" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="handleDrop(event,'safe')">
+    <div class="zone-header"><span class="zone-icon">✓</span> SAFE</div>
+    <div class="zone-thumbs" id="thumbsSafe"><div class="zone-empty">Drop pictures here</div></div>
+  </div>
+  <div class="zone unsafe" id="zoneUnsafe" ondragover="event.preventDefault();this.classList.add('over')" ondragleave="this.classList.remove('over')" ondrop="handleDrop(event,'unsafe')">
+    <div class="zone-header"><span class="zone-icon">✕</span> NOT SAFE</div>
+    <div class="zone-thumbs" id="thumbsUnsafe"><div class="zone-empty">Drop pictures here</div></div>
+  </div>
+</div>
+
+<!-- POOL -->
+<div class="pool-wrap">
+  <div class="pool-label" id="poolLabel">Drag a picture — or tap to select, then tap a box above!</div>
+  <div class="pool" id="pool"></div>
+</div>
+
+<!-- END MODAL -->
+<div class="overlay" id="overlay">
+  <div class="end-card">
+    <div class="celebrate" id="byteEnd"></div>
+    <h2 class="end-title" id="endTitle"></h2>
+    <p class="end-text" id="endText"></p>
+    <div class="final-score">
+      <div class="final-score-box correct">✓<span id="finalCorrect">0</span>correct</div>
+      <div class="final-score-box wrong">✕<span id="finalWrong">0</span>wrong</div>
+    </div>
+    <button class="replay-btn" onclick="init()">🔄 Play Again</button>
+  </div>
+</div>
+
+<script>
+// ─────────────────────────────────────
+// BYTE MASCOT SVG
+// ─────────────────────────────────────
+function byteSvg(mood, size) {
+  size = size || 80;
+  const antenna = (mood !== 'worried')
+    ? `<g stroke="#3fc6c6" stroke-width="3" fill="none" stroke-linecap="round">
+        <path d="M118 18 q22 -22 44 0" opacity=".9"/>
+        <path d="M126 26 q14 -14 28 0" opacity=".9"/>
+       </g>` : '';
+  const faces = {
+    happy: `<circle cx="82" cy="92" r="9" fill="#7fe8e8"/><circle cx="118" cy="92" r="9" fill="#7fe8e8"/>
+      <circle cx="79" cy="89" r="3" fill="#fff"/><circle cx="115" cy="89" r="3" fill="#fff"/>
+      <path d="M80 108 q20 14 40 0" stroke="#7fe8e8" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    worried: `<ellipse cx="82" cy="94" rx="8" ry="10" fill="#7fe8e8"/><ellipse cx="118" cy="94" rx="8" ry="10" fill="#7fe8e8"/>
+      <circle cx="80" cy="91" r="2.5" fill="#fff"/><circle cx="116" cy="91" r="2.5" fill="#fff"/>
+      <path d="M75 78 q7 -5 14 0" stroke="#7fe8e8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M111 78 q7 -5 14 0" stroke="#7fe8e8" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+      <path d="M82 112 q18 -10 36 0" stroke="#7fe8e8" stroke-width="3" fill="none" stroke-linecap="round"/>`,
+    idle: `<circle cx="82" cy="94" r="9" fill="#7fe8e8"/><circle cx="118" cy="94" r="9" fill="#7fe8e8"/>
+      <circle cx="79" cy="91" r="3" fill="#fff"/><circle cx="115" cy="91" r="3" fill="#fff"/>`,
+  };
+  return `<svg viewBox="0 0 200 220" width="${size}" height="${Math.round(size*1.1)}" style="display:block">
+    <circle cx="140" cy="28" r="9" fill="#8a5fc4"/>
+    <rect x="136" y="35" width="8" height="22" rx="3" fill="#3fc6c6"/>
+    ${antenna}
+    <rect x="35" y="50" width="130" height="95" rx="30" fill="#fdfdfd" stroke="#d8d8e0" stroke-width="2"/>
+    <ellipse cx="30" cy="100" rx="10" ry="22" fill="#8a5fc4"/>
+    <ellipse cx="170" cy="100" rx="10" ry="22" fill="#3fc6c6"/>
+    <rect x="52" y="64" width="96" height="62" rx="14" fill="#181828"/>
+    ${faces[mood] || faces.idle}
+    <rect x="55" y="148" width="90" height="62" rx="18" fill="#fdfdfd" stroke="#d8d8e0" stroke-width="2"/>
+    <rect x="68" y="162" width="64" height="28" rx="6" fill="#181828"/>
+    <text x="100" y="182" text-anchor="middle" font-size="16" fill="#3fc6c6" font-family="'Courier New',monospace" font-weight="bold" letter-spacing="2">BYTE</text>
+    <circle cx="84" cy="200" r="3" fill="#8a5fc4"/>
+    <circle cx="100" cy="200" r="3" fill="#8a5fc4"/>
+    <circle cx="116" cy="200" r="3" fill="#8a5fc4"/>
+  </svg>`;
+}
+
+// ─────────────────────────────────────
+// SCENE SVGs (text-free illustrations)
+// ─────────────────────────────────────
+const SCENES = [
+  {
+    id:'parent', zone:'safe',
+    svg:`<svg viewBox="0 0 200 160"><rect width="200" height="160" rx="16" fill="#eaf6f6"/>
+      <rect x="20" y="110" width="160" height="10" fill="#c9b89a"/>
+      <rect x="30" y="120" width="8" height="30" fill="#b39d7a"/><rect x="162" y="120" width="8" height="30" fill="#b39d7a"/>
+      <rect x="70" y="60" width="60" height="44" rx="4" fill="#2b2b3a"/><rect x="76" y="66" width="48" height="32" rx="2" fill="#7fd9d4"/>
+      <circle cx="100" cy="82" r="8" fill="#fff" opacity=".6"/>
+      <rect x="92" y="104" width="16" height="8" fill="#9a9aa8"/><rect x="80" y="112" width="40" height="4" fill="#9a9aa8"/>
+      <circle cx="78" cy="85" r="14" fill="#ffd6a5"/><path d="M66 78 a12 12 0 0 1 24 0" fill="#6b4226"/>
+      <circle cx="74" cy="86" r="2" fill="#2b2b3a"/><circle cx="82" cy="86" r="2" fill="#2b2b3a"/>
+      <path d="M73 91 q5 4 10 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="64" y="98" width="28" height="26" rx="6" fill="#5fb8e0"/>
+      <circle cx="128" cy="80" r="16" fill="#e8b896"/><path d="M112 74 a16 16 0 0 1 32 0" fill="#4a4a4a"/>
+      <circle cx="123" cy="81" r="2.2" fill="#2b2b3a"/><circle cx="133" cy="81" r="2.2" fill="#2b2b3a"/>
+      <path d="M120 87 q8 5 16 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="110" y="96" width="36" height="30" rx="6" fill="#8a6fb0"/>
+      <ellipse cx="100" cy="98" rx="6" ry="4" fill="#e8b896"/>
+      <text x="100" y="40" text-anchor="middle" font-size="22">💚</text></svg>`
+  },
+  {
+    id:'popup', zone:'unsafe',
+    svg:`<svg viewBox="0 0 200 160"><rect width="200" height="160" rx="16" fill="#fdeceb"/>
+      <rect x="20" y="110" width="160" height="10" fill="#c9b89a"/>
+      <rect x="30" y="120" width="8" height="30" fill="#b39d7a"/><rect x="162" y="120" width="8" height="30" fill="#b39d7a"/>
+      <rect x="55" y="55" width="90" height="55" rx="4" fill="#2b2b3a"/><rect x="61" y="61" width="78" height="43" rx="2" fill="#fff"/>
+      <rect x="68" y="68" width="64" height="32" rx="3" fill="#fff" stroke="#e85d2f" stroke-width="2"/>
+      <circle cx="100" cy="80" r="9" fill="#fde8e0"/>
+      <text x="100" y="85" text-anchor="middle" font-size="12" fill="#e85d2f" font-weight="bold">!</text>
+      <rect x="76" y="92" width="48" height="5" rx="2" fill="#f0c4b8"/>
+      <rect x="86" y="100" width="8" height="8" fill="#2b2b3a"/><rect x="106" y="100" width="8" height="8" fill="#2b2b3a"/>
+      <rect x="92" y="112" width="40" height="4" fill="#9a9aa8"/>
+      <circle cx="85" cy="88" r="14" fill="#ffd6a5"/><path d="M73 81 a12 12 0 0 1 24 0" fill="#6b4226"/>
+      <circle cx="81" cy="89" r="2" fill="#2b2b3a"/><circle cx="89" cy="89" r="2" fill="#2b2b3a"/>
+      <path d="M79 96 q6 -4 12 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="71" y="101" width="28" height="26" rx="6" fill="#5fb8e0"/>
+      <text x="155" y="35" text-anchor="middle" font-size="26">⚠️</text></svg>`
+  },
+  {
+    id:'password', zone:'unsafe',
+    svg:`<svg viewBox="0 0 200 160"><rect width="200" height="160" rx="16" fill="#fdeceb"/>
+      <rect x="20" y="110" width="160" height="10" fill="#c9b89a"/>
+      <rect x="30" y="120" width="8" height="30" fill="#b39d7a"/><rect x="162" y="120" width="8" height="30" fill="#b39d7a"/>
+      <rect x="60" y="50" width="80" height="58" rx="4" fill="#2b2b3a"/><rect x="66" y="56" width="68" height="46" rx="2" fill="#3a3a52"/>
+      <ellipse cx="100" cy="80" rx="18" ry="20" fill="#5a5a72"/>
+      <text x="100" y="86" text-anchor="middle" font-size="20">🙂</text>
+      <text x="100" y="98" text-anchor="middle" font-size="9" fill="#fff">?????</text>
+      <rect x="92" y="112" width="16" height="8" fill="#9a9aa8"/><rect x="80" y="120" width="40" height="4" fill="#9a9aa8"/>
+      <circle cx="80" cy="92" r="14" fill="#ffd6a5"/><path d="M68 85 a12 12 0 0 1 24 0" fill="#3a2e1a"/>
+      <circle cx="76" cy="93" r="2" fill="#2b2b3a"/><circle cx="84" cy="93" r="2" fill="#2b2b3a"/>
+      <path d="M75 99 q5 3 10 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="66" y="105" width="28" height="26" rx="6" fill="#e8a050"/>
+      <path d="M30 35 q-4 0 -4 4 v18 q0 4 4 4 h14 l6 8 v-8 h10 q4 0 4 -4 v-18 q0 -4 -4 -4 z" fill="#fff" stroke="#9a9aa8" stroke-width="1.5"/>
+      <text x="40" y="52" text-anchor="middle" font-size="13">🔑****</text></svg>`
+  },
+  {
+    id:'help', zone:'safe',
+    svg:`<svg viewBox="0 0 200 160"><rect width="200" height="160" rx="16" fill="#eaf6f6"/>
+      <rect x="20" y="110" width="160" height="10" fill="#c9b89a"/>
+      <rect x="30" y="120" width="8" height="30" fill="#b39d7a"/><rect x="162" y="120" width="8" height="30" fill="#b39d7a"/>
+      <rect x="78" y="48" width="46" height="36" rx="4" fill="#2b2b3a" transform="rotate(-8 101 66)"/>
+      <rect x="82" y="52" width="38" height="28" rx="2" fill="#7fd9d4" transform="rotate(-8 101 66)"/>
+      <text x="98" y="70" text-anchor="middle" font-size="14" transform="rotate(-8 101 66)">❓</text>
+      <circle cx="78" cy="92" r="14" fill="#ffd6a5"/><path d="M66 85 a12 12 0 0 1 24 0" fill="#6b4226"/>
+      <circle cx="74" cy="93" r="2" fill="#2b2b3a"/><circle cx="82" cy="93" r="2" fill="#2b2b3a"/>
+      <path d="M73 99 q5 4 10 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="64" y="105" width="28" height="26" rx="6" fill="#5fb8e0"/>
+      <circle cx="135" cy="80" r="16" fill="#e8b896"/><path d="M119 74 a16 16 0 0 1 32 0" fill="#8a5a2a"/>
+      <circle cx="130" cy="81" r="2.2" fill="#2b2b3a"/><circle cx="140" cy="81" r="2.2" fill="#2b2b3a"/>
+      <path d="M127 86 q9 6 18 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="117" y="96" width="36" height="30" rx="6" fill="#7fb069"/>
+      <text x="100" y="30" text-anchor="middle" font-size="22">💚</text></svg>`
+  },
+  {
+    id:'link', zone:'unsafe',
+    svg:`<svg viewBox="0 0 200 160"><rect width="200" height="160" rx="16" fill="#fdeceb"/>
+      <rect x="20" y="110" width="160" height="10" fill="#c9b89a"/>
+      <rect x="30" y="120" width="8" height="30" fill="#b39d7a"/><rect x="162" y="120" width="8" height="30" fill="#b39d7a"/>
+      <rect x="55" y="50" width="90" height="58" rx="4" fill="#2b2b3a"/><rect x="61" y="56" width="78" height="46" rx="2" fill="#fff"/>
+      <rect x="66" y="62" width="68" height="20" rx="3" fill="#f0a500"/>
+      <text x="100" y="76" text-anchor="middle" font-size="11" font-weight="bold" fill="#fff">🎁 CLICK!! 🎁</text>
+      <circle cx="100" cy="93" r="9" fill="#e85d2f"/>
+      <text x="100" y="98" text-anchor="middle" font-size="10" fill="#fff">★</text>
+      <text x="118" y="104" font-size="14">👆</text>
+      <circle cx="85" cy="92" r="14" fill="#ffd6a5"/><path d="M73 85 a12 12 0 0 1 24 0" fill="#3a2e1a"/>
+      <circle cx="81" cy="93" r="2" fill="#2b2b3a"/><circle cx="89" cy="93" r="2" fill="#2b2b3a"/>
+      <path d="M79 99 q6 3 12 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="71" y="105" width="28" height="26" rx="6" fill="#e85d2f"/>
+      <text x="160" y="35" text-anchor="middle" font-size="26">⚠️</text></svg>`
+  },
+  {
+    id:'family', zone:'safe',
+    svg:`<svg viewBox="0 0 200 160"><rect width="200" height="160" rx="16" fill="#eaf6f6"/>
+      <rect x="20" y="110" width="160" height="10" fill="#c9b89a"/>
+      <rect x="30" y="120" width="8" height="30" fill="#b39d7a"/><rect x="162" y="120" width="8" height="30" fill="#b39d7a"/>
+      <rect x="60" y="50" width="80" height="50" rx="4" fill="#2b2b3a"/><rect x="66" y="56" width="68" height="38" rx="2" fill="#c8e6c9"/>
+      <text x="100" y="80" text-anchor="middle" font-size="20">🎮</text>
+      <circle cx="78" cy="92" r="13" fill="#ffd6a5"/><path d="M67 86 a11 11 0 0 1 22 0" fill="#6b4226"/>
+      <circle cx="74" cy="93" r="2" fill="#2b2b3a"/><circle cx="82" cy="93" r="2" fill="#2b2b3a"/>
+      <path d="M73 98 q5 4 10 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="65" y="104" width="26" height="24" rx="6" fill="#5fb8e0"/>
+      <circle cx="125" cy="92" r="13" fill="#e8b896"/><path d="M114 86 a11 11 0 0 1 22 0" fill="#3a2e1a"/>
+      <circle cx="121" cy="93" r="2" fill="#2b2b3a"/><circle cx="129" cy="93" r="2" fill="#2b2b3a"/>
+      <path d="M120 98 q5 4 10 0" stroke="#2b2b3a" stroke-width="1.5" fill="none" stroke-linecap="round"/>
+      <rect x="112" y="104" width="26" height="24" rx="6" fill="#f4b942"/>
+      <text x="100" y="30" text-anchor="middle" font-size="22">😄</text></svg>`
+  }
+];
+
+// ─────────────────────────────────────
+// STATE
+// ─────────────────────────────────────
+let pool = [], scoreCorrect = 0, scoreWrong = 0, dragId = null, touchSelected = null;
+const TOTAL = SCENES.length;
+
+function shuffle(arr) {
+  const a = [...arr];
+  for (let i = a.length-1; i>0; i--) {
+    const j = Math.floor(Math.random()*(i+1));
+    [a[i],a[j]]=[a[j],a[i]];
+  }
+  return a;
+}
+
+function init() {
+  pool = shuffle([...SCENES]);
+  scoreCorrect = 0;
+  scoreWrong = 0;
+  touchSelected = null;
+  dragId = null;
+  document.getElementById('overlay').classList.remove('show');
+  document.getElementById('thumbsSafe').innerHTML   = '<div class="zone-empty">Drop pictures here</div>';
+  document.getElementById('thumbsUnsafe').innerHTML = '<div class="zone-empty">Drop pictures here</div>';
+  renderPool();
+  updateScoreboard();
+  setByteMode('idle');
+}
+
+function setByteMode(mood) {
+  document.getElementById('byteEl').innerHTML = byteSvg(mood, 80);
+}
+
+// ─────────────────────────────────────
+// SCOREBOARD
+// ─────────────────────────────────────
+function updateScoreboard() {
+  const done = scoreCorrect + scoreWrong;
+  document.getElementById('scoreCorrect').textContent = scoreCorrect;
+  document.getElementById('scoreWrong').textContent   = scoreWrong;
+  document.getElementById('scoreLeft').textContent    = pool.length;
+  document.getElementById('progressFill').style.width = `${(done/TOTAL)*100}%`;
+}
+
+function animateScore(id) {
+  const el = document.getElementById(id);
+  el.style.animation = 'score-pop .3s ease';
+  setTimeout(() => el.style.animation = '', 300);
+}
+
+// ─────────────────────────────────────
+// TOAST
+// ─────────────────────────────────────
+let toastTimer;
+function showToast(msg, type) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = 'toast show ' + type;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.className = 'toast', 1500);
+}
+
+// ─────────────────────────────────────
+// DROP LOGIC
+// ─────────────────────────────────────
+function dropItem(item, zone) {
+  const correct = item.zone === zone;
+  // add thumb
+  const thumbsEl = document.getElementById(zone === 'safe' ? 'thumbsSafe' : 'thumbsUnsafe');
+  const empty = thumbsEl.querySelector('.zone-empty');
+  if (empty) empty.remove();
+  const div = document.createElement('div');
+  div.className = 'zone-thumb';
+  div.innerHTML = item.svg;
+  thumbsEl.appendChild(div);
+
+  // flash zone
+  const zoneEl = document.getElementById(zone === 'safe' ? 'zoneSafe' : 'zoneUnsafe');
+  if (correct) {
+    zoneEl.classList.add('flash-green');
+    setTimeout(() => zoneEl.classList.remove('flash-green'), 500);
+    scoreCorrect++;
+    animateScore('scoreCorrect');
+    showToast('✓ Correct! +1', 'good');
+    setByteMode('happy');
+  } else {
+    zoneEl.classList.add('flash-red');
+    setTimeout(() => zoneEl.classList.remove('flash-red'), 500);
+    scoreWrong++;
+    animateScore('scoreWrong');
+    showToast('✕ Oops! Try again next time', 'bad');
+    setByteMode('worried');
+  }
+
+  setTimeout(() => setByteMode('idle'), 1500);
+
+  pool = pool.filter(i => i.id !== item.id);
+  updateScoreboard();
+  renderPool();
+
+  if (pool.length === 0) {
+    setTimeout(showEnd, 800);
+  }
+}
+
+// ─────────────────────────────────────
+// END SCREEN
+// ─────────────────────────────────────
+function showEnd() {
+  document.getElementById('finalCorrect').textContent = scoreCorrect;
+  document.getElementById('finalWrong').textContent   = scoreWrong;
+  const perfect = scoreCorrect === TOTAL;
+  document.getElementById('endTitle').textContent = perfect ? 'Perfect! Byte is safe! 🎉' : 'Great job!';
+  document.getElementById('endText').textContent  = perfect
+    ? 'You got every single one right! You are a real Digital Guardian!'
+    : `You got ${scoreCorrect} out of ${TOTAL}. Let's talk about the ones we missed together!`;
+  document.getElementById('byteEnd').innerHTML = byteSvg(perfect ? 'happy' : 'idle', 100);
+  document.getElementById('overlay').classList.add('show');
+}
+
+// ─────────────────────────────────────
+// POOL RENDERING
+// ─────────────────────────────────────
+function renderPool() {
+  const poolEl = document.getElementById('pool');
+  const label  = document.getElementById('poolLabel');
+  poolEl.innerHTML = '';
+
+  if (pool.length === 0) {
+    label.textContent = 'All done!';
+    return;
+  }
+
+  label.textContent = touchSelected
+    ? '👆 Now tap a box above!'
+    : 'Drag a picture — or tap to select, then tap a box above!';
+
+  pool.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'scene-card' + (touchSelected && touchSelected.id === item.id ? ' selected' : '');
+    card.innerHTML = item.svg;
+    card.draggable = true;
+
+    // drag
+    card.addEventListener('dragstart', e => {
+      dragId = item.id;
+      e.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragend', () => { dragId = null; });
+
+    // tap (touch/click fallback)
+    card.addEventListener('click', () => {
+      if (touchSelected && touchSelected.id === item.id) {
+        touchSelected = null;
+      } else {
+        touchSelected = item;
+      }
+      renderPool();
+    });
+
+    poolEl.appendChild(card);
+  });
+}
+
+// ─────────────────────────────────────
+// DROP ZONE CLICK (for tap flow)
+// ─────────────────────────────────────
+document.getElementById('zoneSafe').addEventListener('click', () => {
+  if (touchSelected) { dropItem(touchSelected, 'safe'); touchSelected = null; }
+});
+document.getElementById('zoneUnsafe').addEventListener('click', () => {
+  if (touchSelected) { dropItem(touchSelected, 'unsafe'); touchSelected = null; }
+});
+
+// ─────────────────────────────────────
+// DRAG DROP HANDLERS
+// ─────────────────────────────────────
+function handleDrop(e, zone) {
+  e.preventDefault();
+  document.getElementById(zone === 'safe' ? 'zoneSafe' : 'zoneUnsafe').classList.remove('over');
+  const item = pool.find(i => i.id === dragId);
+  if (item) dropItem(item, zone);
+}
+
+// ─────────────────────────────────────
+// START
+// ─────────────────────────────────────
+init();
+</script>
+</body>
+</html>
